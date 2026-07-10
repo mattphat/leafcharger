@@ -1,4 +1,4 @@
-const CACHE_NAME = 'leaf-charge-planner-v1';
+const CACHE_NAME = 'leaf-charge-planner-v1.1';
 const FILES_TO_CACHE = [
   './',
   './index.html',
