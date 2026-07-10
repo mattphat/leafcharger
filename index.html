@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Leaf Charge Planner</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Charge Planner">
+<meta name="theme-color" content="#14181c">
+<style>
+  :root {
+    --bg: #14181c;
+    --panel: #1c2126;
+    --panel2: #232a31;
+    --line: #2f383f;
+    --text: #e8ecef;
+    --muted: #8a93a0;
+    --cyan: #3fd9e0;
+    --amber: #f5a623;
+    --red: #e0605a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  }
+  body { padding: 20px 16px 40px; max-width: 480px; margin: 0 auto; }
+  h1 {
+    font-size: 19px; font-weight: 600; margin: 0 0 2px;
+    letter-spacing: 0.2px;
+  }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); font-weight: 600; margin: 0 0 12px;
+  }
+  .card h2 .settings-hint {
+    text-transform: none; letter-spacing: normal; font-weight: 400; color: var(--muted);
+  }
+  .row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .row:last-child { margin-bottom: 0; }
+  .field { flex: 1; min-width: 0; }
+  .field label {
+    display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px;
+  }
+  .field input {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 16px;
+    padding: 9px 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .field input:focus { outline: none; border-color: var(--cyan); }
+  input[type="time"], input[type="date"] { color-scheme: dark; }
+  .duration-readout {
+    display: flex; align-items: baseline; gap: 8px; justify-content: center;
+    padding: 14px 0 4px;
+  }
+  .duration-readout .big {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 40px; font-weight: 600; color: var(--cyan); letter-spacing: 0.5px;
+  }
+  .duration-readout .lbl { font-size: 13px; color: var(--muted); }
+  .warn {
+    background: rgba(224,96,90,0.12); border: 1px solid rgba(224,96,90,0.4);
+    color: var(--red); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-top: 10px;
+  }
+  .climate-row {
+    display: flex; align-items: center; gap: 12px; margin-top: 12px;
+    padding-top: 12px; border-top: 1px solid var(--line);
+  }
+  .climate-check {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text);
+    flex: 1; cursor: pointer;
+  }
+  .climate-check input[type="checkbox"] {
+    width: 18px; height: 18px; accent-color: var(--amber); flex-shrink: 0;
+  }
+  .climate-mins { flex: 0 0 110px; }
+  .climate-mins input { padding: 6px 8px; font-size: 14px; }
+  .climate-mins label { font-size: 11px; }
+  .plan-desc { font-size: 13px; color: var(--text); margin-bottom: 10px; line-height: 1.4; }
+  .clocks { display: flex; gap: 10px; }
+  .clock { flex: 1; background: var(--panel2); border-radius: 10px; padding: 10px 12px; text-align: center; }
+  .clock .zone { font-size: 11px; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 2px; }
+  .clock .time { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 20px; font-weight: 600; }
+  .clock .day { font-size: 10px; color: var(--amber); margin-top: 2px; min-height: 12px; }
+  .arrow { display: flex; align-items: center; color: var(--muted); font-size: 14px; }
+  .timeline {
+    position: relative; height: 34px; background: var(--panel2);
+    border-radius: 8px; margin-top: 12px; overflow: hidden;
+  }
+  .timeline .peak-band { position: absolute; top: 0; bottom: 0; background: rgba(63,217,224,0.16); }
+  .timeline .charge-block { position: absolute; top: 6px; bottom: 6px; background: var(--amber); border-radius: 4px; opacity: 0.85; }
+  .offset-note {
+    font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px;
+  }
+  .footnote { font-size: 11px; color: var(--muted); text-align: center; margin-top: 18px; line-height: 1.5; }
+  .saved-note { font-size: 11px; color: var(--muted); text-align: center; margin-top: -4px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Leaf charge planner</h1>
+<p class="sub">Battery time estimate, off-peak scheduling, JPT ⇄ NZT conversion</p>
+
+<div class="card">
+  <h2>Battery &amp; charger</h2>
+  <div class="row">
+    <div class="field">
+      <label for="capacity">Battery capacity (kWh)</label>
+      <input type="number" id="capacity" value="30" step="0.1" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="power">Charge power (kW)</label>
+      <input type="number" id="power" value="1.8" step="0.1" inputmode="decimal">
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label for="efficiency">Charging efficiency (%)</label>
+      <input type="number" id="efficiency" value="90" step="1" inputmode="decimal">
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Charge level</h2>
+  <div class="row">
+    <div class="field">
+      <label for="current">Current charge (%)</label>
+      <input type="number" id="current" value="20" step="1" min="0" max="100" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label for="target">Target charge (%)</label>
+      <input type="number" id="target" value="80" step="1" min="0" max="100" inputmode="numeric">
+    </div>
+  </div>
+  <div class="duration-readout">
+    <span class="big" id="durationOut">--:--</span>
+    <span class="lbl">h:mm to charge</span>
+  </div>
+  <div id="durationWarn"></div>
+  <div class="climate-row">
+    <label class="climate-check">
+      <input type="checkbox" id="climateOn">
+      <span>Add climate pre-condition timer</span>
+    </label>
+    <div class="field climate-mins" id="climateMinsWrap" style="display:none;">
+      <label for="climateMins">Minutes to add</label>
+      <input type="number" id="climateMins" value="15" step="1" min="0" inputmode="numeric">
+    </div>
+  </div>
+  <div class="offset-note" id="totalNote" style="display:none;"></div>
+</div>
+
+<div class="card">
+  <h2>Your plan</h2>
+  <p class="plan-desc">Finish charging right as the off-peak window closes.</p>
+  <div class="clocks">
+    <div class="clock">
+      <div class="zone">NZT start → stop</div>
+      <div class="time" id="b-nzt">--:-- → --:--</div>
+      <div class="day" id="b-nzt-day"></div>
+    </div>
+    <div class="arrow"><i>&#8594;</i></div>
+    <div class="clock">
+      <div class="zone">Set on car (JPT)</div>
+      <div class="time" id="b-jpt">--:-- → --:--</div>
+      <div class="day" id="b-jpt-day"></div>
+    </div>
+  </div>
+  <div class="timeline" id="timeline"></div>
+  <div id="fitWarn"></div>
+  <div class="offset-note" id="offsetNote"></div>
+</div>
+
+<div class="card">
+  <h2>Off-peak window <span class="settings-hint">— settings, rarely changes</span></h2>
+  <div class="row">
+    <div class="field">
+      <label for="planDate">Date</label>
+      <input type="date" id="planDate">
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label for="peakStart">Off-peak starts</label>
+      <input type="time" id="peakStart" value="21:00">
+    </div>
+    <div class="field">
+      <label for="peakEnd">Off-peak ends</label>
+      <input type="time" id="peakEnd" value="07:00">
+    </div>
+  </div>
+</div>
+
+<p class="footnote">Charger, off-peak times, and other settings are remembered on this device automatically. JPT/NZT offset is calculated live for the selected date, so NZ daylight saving is handled without extra input. "Set on car" times assume your Leaf's timer clock is running on JPT.</p>
+
+<script>
+(function () {
+  var ids = ['capacity','power','efficiency','current','target','planDate','peakStart','peakEnd','climateOn','climateMins'];
+  var els = {};
+  ids.forEach(function (id) { els[id] = document.getElementById(id); });
+
+  var STORAGE_KEY = 'leafChargePlanner:v1';
+
+  function saveSettings() {
+    try {
+      var data = {};
+      ids.forEach(function (id) {
+        var el = els[id];
+        data[id] = (el.type === 'checkbox') ? el.checked : el.value;
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) { /* storage unavailable, ignore */ }
+  }
+
+  function loadSettings() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      var data = JSON.parse(raw);
+      ids.forEach(function (id) {
+        if (id === 'planDate') return;
+        if (data[id] === undefined) return;
+        var el = els[id];
+        if (el.type === 'checkbox') el.checked = data[id];
+        else el.value = data[id];
+      });
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function todayISO() {
+    var d = new Date();
+    var tz = d.getTimezoneOffset() * 60000;
+    return new Date(d - tz).toISOString().slice(0, 10);
+  }
+  els.planDate.value = todayISO();
+  loadSettings();
+
+  function parseTime(str) {
+    var parts = str.split(':');
+    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+  }
+
+  function fmtMinutes(mins) {
+    mins = ((mins % 1440) + 1440) % 1440;
+    var h = Math.floor(mins / 60);
+    var m = Math.round(mins % 60);
+    if (m === 60) { m = 0; h += 1; }
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
+  function dayLabel(dayOffset) {
+    if (dayOffset === 0) return '';
+    if (dayOffset === 1) return 'next day';
+    if (dayOffset === -1) return 'previous day';
+    return dayOffset + ' days';
+  }
+
+  function tzOffsetMinutes(timeZone, dateObj) {
+    var dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: timeZone, timeZoneName: 'shortOffset', hour: '2-digit'
+    });
+    var parts = dtf.formatToParts(dateObj);
+    var tzPart = parts.find(function (p) { return p.type === 'timeZoneName'; });
+    if (!tzPart) return null;
+    var m = tzPart.value.match(/GMT([+-]\d+)(?::?(\d+))?/);
+    if (!m) return null;
+    var hours = parseInt(m[1], 10);
+    var mins = m[2] ? parseInt(m[2], 10) : 0;
+    return hours * 60 + (hours < 0 ? -mins : mins);
+  }
+
+  function render() {
+    var capacity = parseFloat(els.capacity.value) || 0;
+    var power = parseFloat(els.power.value) || 0;
+    var eff = (parseFloat(els.efficiency.value) || 100) / 100;
+    var current = parseFloat(els.current.value) || 0;
+    var target = parseFloat(els.target.value) || 0;
+
+    var durationWarn = document.getElementById('durationWarn');
+    durationWarn.innerHTML = '';
+
+    var deltaPct = target - current;
+    var durationMins = 0;
+    if (deltaPct <= 0 || power <= 0 || eff <= 0) {
+      document.getElementById('durationOut').textContent = '--:--';
+      if (deltaPct <= 0 && (target || current)) {
+        durationWarn.innerHTML = '<div class="warn">Target must be higher than current charge.</div>';
+      }
+    } else {
+      var energyNeeded = capacity * (deltaPct / 100);
+      var hours = energyNeeded / (power * eff);
+      durationMins = hours * 60;
+      var totalH = Math.floor(durationMins / 60);
+      var totalM = Math.round(durationMins % 60);
+      if (totalM === 60) { totalM = 0; totalH += 1; }
+      document.getElementById('durationOut').textContent = totalH + ':' + String(totalM).padStart(2, '0');
+    }
+
+    document.getElementById('climateMinsWrap').style.display = els.climateOn.checked ? 'flex' : 'none';
+    var climateMins = els.climateOn.checked ? (parseFloat(els.climateMins.value) || 0) : 0;
+    var totalNote = document.getElementById('totalNote');
+    var planMins = durationMins + climateMins;
+    if (climateMins > 0 && durationMins > 0) {
+      var pH = Math.floor(planMins / 60), pM = Math.round(planMins % 60);
+      totalNote.style.display = 'block';
+      totalNote.textContent = 'Charge ' + Math.round(durationMins) + ' min + climate ' + Math.round(climateMins) + ' min = ' + pH + ':' + String(pM).padStart(2,'0') + ' scheduled block';
+    } else {
+      totalNote.style.display = 'none';
+    }
+
+    var peakStartMins = parseTime(els.peakStart.value || '21:00');
+    var peakEndMins = parseTime(els.peakEnd.value || '07:00');
+    var windowLen = peakEndMins - peakStartMins;
+    if (windowLen <= 0) windowLen += 1440;
+
+    var dateVal = els.planDate.value || todayISO();
+    var refDate = new Date(dateVal + 'T12:00:00Z');
+    var nzOffset = tzOffsetMinutes('Pacific/Auckland', refDate);
+    var jpOffset = tzOffsetMinutes('Asia/Tokyo', refDate);
+    var diff = (nzOffset !== null && jpOffset !== null) ? (nzOffset - jpOffset) : 180;
+
+    var offsetNote = document.getElementById('offsetNote');
+    var diffH = diff / 60;
+    offsetNote.textContent = 'NZT is currently ' + diffH + 'h ahead of JPT on ' + dateVal + (nzOffset === 12*60 ? ' (NZST)' : nzOffset === 13*60 ? ' (NZDT)' : '');
+
+    var fitWarn = document.getElementById('fitWarn');
+    fitWarn.innerHTML = '';
+    if (planMins > windowLen) {
+      fitWarn.innerHTML = '<div class="warn">Scheduled block (' + Math.round(planMins) + ' min) is longer than the off-peak window (' + Math.round(windowLen) + ' min) — it will spill into peak rate either way.</div>';
+    }
+
+    function toJPT(nztMins, dayOffset) {
+      var raw = nztMins - diff;
+      var extraDay = Math.floor(raw / 1440);
+      return { mins: fmtMinutes(raw), dayOffset: dayOffset + extraDay };
+    }
+
+    function fillPlan(prefix, startMins, startDayOffset, stopMins, stopDayOffset) {
+      document.getElementById(prefix + '-nzt').textContent = fmtMinutes(startMins) + ' \u2192 ' + fmtMinutes(stopMins);
+      document.getElementById(prefix + '-nzt-day').textContent =
+        (startDayOffset ? dayLabel(startDayOffset) + ' start' : '') +
+        (startDayOffset && stopDayOffset && stopDayOffset !== startDayOffset ? ', ' : (startDayOffset ? ' / ' : '')) +
+        (stopDayOffset && stopDayOffset !== startDayOffset ? dayLabel(stopDayOffset) + ' stop' : '');
+
+      var jStart = toJPT(startMins, startDayOffset);
+      var jStop = toJPT(stopMins, stopDayOffset);
+      document.getElementById(prefix + '-jpt').textContent = jStart.mins + ' \u2192 ' + jStop.mins;
+      var jDayText = '';
+      if (jStart.dayOffset) jDayText += dayLabel(jStart.dayOffset) + ' start';
+      if (jStop.dayOffset && jStop.dayOffset !== jStart.dayOffset) {
+        jDayText += (jDayText ? ', ' : '') + dayLabel(jStop.dayOffset) + ' stop';
+      }
+      document.getElementById(prefix + '-jpt-day').textContent = jDayText;
+    }
+
+    var bLeftForTimeline, bWidthForTimeline;
+    if (durationMins > 0) {
+      var bStop = peakEndMins;
+      var bStart = bStop - planMins;
+      var bStartDay = bStart < 0 ? -1 : 0;
+      var bStartNorm = ((bStart % 1440) + 1440) % 1440;
+      fillPlan('b', bStartNorm, bStartDay, bStop, 0);
+      bLeftForTimeline = bStartNorm;
+      bWidthForTimeline = planMins;
+    } else {
+      document.getElementById('b-nzt').textContent = '--:-- \u2192 --:--';
+      document.getElementById('b-jpt').textContent = '--:-- \u2192 --:--';
+      document.getElementById('b-nzt-day').textContent = '';
+      document.getElementById('b-jpt-day').textContent = '';
+    }
+
+    var tl = document.getElementById('timeline');
+    tl.innerHTML = '';
+    var band = document.createElement('div');
+    band.className = 'peak-band';
+    var leftPct = (peakStartMins / 1440) * 100;
+    var widthPct = (windowLen / 1440) * 100;
+    band.style.left = leftPct + '%';
+    band.style.width = Math.min(widthPct, 100 - leftPct) + '%';
+    tl.appendChild(band);
+    if (leftPct + widthPct > 100) {
+      var band2 = document.createElement('div');
+      band2.className = 'peak-band';
+      band2.style.left = '0%';
+      band2.style.width = (leftPct + widthPct - 100) + '%';
+      tl.appendChild(band2);
+    }
+    if (durationMins > 0) {
+      var block = document.createElement('div');
+      block.className = 'charge-block';
+      var blLeft = (bLeftForTimeline / 1440) * 100;
+      var blWidth = (bWidthForTimeline / 1440) * 100;
+      block.style.left = blLeft + '%';
+      block.style.width = Math.min(blWidth, 100 - blLeft) + '%';
+      tl.appendChild(block);
+    }
+
+    saveSettings();
+  }
+
+  ids.forEach(function (id) {
+    els[id].addEventListener('input', render);
+    els[id].addEventListener('change', render);
+  });
+  render();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('service-worker.js').catch(function () { /* ignore */ });
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
