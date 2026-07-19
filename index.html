@@ -156,6 +156,23 @@
     <span class="lbl">h:mm to charge</span>
   </div>
   <div id="durationWarn"></div>
+  <div class="offset-note" id="taperNote" style="display:none;"></div>
+  <div class="climate-row">
+    <label class="climate-check">
+      <input type="checkbox" id="taperOn" checked>
+      <span>Model charge taper above threshold</span>
+    </label>
+  </div>
+  <div class="row" id="taperRow" style="display:none; margin-top:10px;">
+    <div class="field">
+      <label for="taperStart">Taper starts at (%)</label>
+      <input type="number" id="taperStart" value="80" step="1" min="0" max="100" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label for="taperRate">Rate above it (% of normal)</label>
+      <input type="number" id="taperRate" value="68" step="5" min="1" max="100" inputmode="numeric">
+    </div>
+  </div>
   <div class="climate-row">
     <label class="climate-check">
       <input type="checkbox" id="climateOn">
@@ -186,8 +203,8 @@
     </div>
   </div>
   <div class="timeline" id="timeline" style="display:none;"></div>
-<div id="fitWarn" style="display:none;"></div>
-<div class="offset-note" id="offsetNote" style="display:none;"></div>
+  <div id="fitWarn" style="display:none;"></div>
+  <div class="offset-note" id="offsetNote" style="display:none;"></div>
 </div>
 
 <div class="card">
@@ -214,7 +231,7 @@
 
 <script>
 (function () {
-  var ids = ['capacity','power','efficiency','current','target','planDate','peakStart','peakEnd','climateOn','climateMins'];
+  var ids = ['capacity','power','efficiency','current','target','planDate','peakStart','peakEnd','climateOn','climateMins','taperOn','taperStart','taperRate'];
   var els = {};
   ids.forEach(function (id) { els[id] = document.getElementById(id); });
 
@@ -301,19 +318,51 @@
 
     var deltaPct = target - current;
     var durationMins = 0;
+    document.getElementById('taperRow').style.display = els.taperOn.checked ? 'flex' : 'none';
+    var taperNote = document.getElementById('taperNote');
+    taperNote.style.display = 'none';
+
     if (deltaPct <= 0 || power <= 0 || eff <= 0) {
       document.getElementById('durationOut').textContent = '--:--';
       if (deltaPct <= 0 && (target || current)) {
         durationWarn.innerHTML = '<div class="warn">Target must be higher than current charge.</div>';
       }
     } else {
-      var energyNeeded = capacity * (deltaPct / 100);
-      var hours = energyNeeded / (power * eff);
-      durationMins = hours * 60;
-      var totalH = Math.floor(durationMins / 60);
-      var totalM = Math.round(durationMins % 60);
-      if (totalM === 60) { totalM = 0; totalH += 1; }
-      document.getElementById('durationOut').textContent = totalH + ':' + String(totalM).padStart(2, '0');
+      var taperOn = els.taperOn.checked;
+      var taperStart = taperOn ? (parseFloat(els.taperStart.value)) : 101;
+      if (isNaN(taperStart)) taperStart = 80;
+      var taperRate = taperOn ? (parseFloat(els.taperRate.value)) : 100;
+      if (isNaN(taperRate)) taperRate = 100;
+
+      var boundary = Math.min(Math.max(taperStart, current), target);
+      var energyFull = capacity * (boundary - current) / 100;
+      var energyTaper = capacity * (target - boundary) / 100;
+      var powerFull = power;
+      var powerTaper = power * (taperRate / 100);
+
+      var minsFull = (energyFull > 0 && powerFull > 0) ? (energyFull / (powerFull * eff)) * 60 : 0;
+      var minsTaper = 0;
+      var impossible = false;
+      if (energyTaper > 0) {
+        if (powerTaper > 0) minsTaper = (energyTaper / (powerTaper * eff)) * 60;
+        else impossible = true;
+      }
+
+      if (impossible) {
+        document.getElementById('durationOut').textContent = '--:--';
+        durationWarn.innerHTML = '<div class="warn">Taper rate can\'t be 0% while charging through the taper zone.</div>';
+      } else {
+        durationMins = minsFull + minsTaper;
+        var totalH = Math.floor(durationMins / 60);
+        var totalM = Math.round(durationMins % 60);
+        if (totalM === 60) { totalM = 0; totalH += 1; }
+        document.getElementById('durationOut').textContent = totalH + ':' + String(totalM).padStart(2, '0');
+
+        if (taperOn && energyFull > 0 && energyTaper > 0) {
+          taperNote.style.display = 'block';
+          taperNote.textContent = Math.round(minsFull) + ' min to ' + boundary + '%, ' + Math.round(minsTaper) + ' min tapered to ' + target + '%';
+        }
+      }
     }
 
     document.getElementById('climateMinsWrap').style.display = els.climateOn.checked ? 'flex' : 'none';
