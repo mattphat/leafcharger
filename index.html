@@ -106,7 +106,8 @@
     border-radius: 8px; margin-top: 12px; overflow: hidden;
   }
   .timeline .peak-band { position: absolute; top: 0; bottom: 0; background: rgba(63,217,224,0.16); }
-  .timeline .charge-block { position: absolute; top: 6px; bottom: 6px; background: var(--amber); border-radius: 4px; opacity: 0.85; }
+  .timeline .charge-block { position: absolute; top: 6px; bottom: 6px; background: var(--amber); border-radius: 4px 0 0 4px; opacity: 0.85; }
+  .timeline .buffer-block { position: absolute; top: 6px; bottom: 6px; background: var(--cyan); border-radius: 0 4px 4px 0; opacity: 0.45; }
   .offset-note {
     font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px;
   }
@@ -118,26 +119,6 @@
 
 <h1>Leaf charge planner</h1>
 <p class="sub">Battery time estimate, off-peak scheduling, JPT ⇄ NZT conversion</p>
-
-<div class="card">
-  <h2>Battery &amp; charger</h2>
-  <div class="row">
-    <div class="field">
-      <label for="capacity">Battery capacity (kWh)</label>
-      <input type="number" id="capacity" value="30" step="0.1" inputmode="decimal">
-    </div>
-    <div class="field">
-      <label for="power">Charge power (kW)</label>
-      <input type="number" id="power" value="1.8" step="0.1" inputmode="decimal">
-    </div>
-  </div>
-  <div class="row">
-    <div class="field">
-      <label for="efficiency">Charging efficiency (%)</label>
-      <input type="number" id="efficiency" value="90" step="1" inputmode="decimal">
-    </div>
-  </div>
-</div>
 
 <div class="card">
   <h2>Charge level</h2>
@@ -159,22 +140,6 @@
   <div class="offset-note" id="taperNote" style="display:none;"></div>
   <div class="climate-row">
     <label class="climate-check">
-      <input type="checkbox" id="taperOn" checked>
-      <span>Model charge taper above threshold</span>
-    </label>
-  </div>
-  <div class="row" id="taperRow" style="display:none; margin-top:10px;">
-    <div class="field">
-      <label for="taperStart">Taper starts at (%)</label>
-      <input type="number" id="taperStart" value="80" step="1" min="0" max="100" inputmode="numeric">
-    </div>
-    <div class="field">
-      <label for="taperRate">Rate above it (% of normal)</label>
-      <input type="number" id="taperRate" value="70" step="5" min="1" max="100" inputmode="numeric">
-    </div>
-  </div>
-  <div class="climate-row">
-    <label class="climate-check">
       <input type="checkbox" id="climateOn">
       <span>Add climate pre-condition timer</span>
     </label>
@@ -188,7 +153,7 @@
 
 <div class="card">
   <h2>Your plan</h2>
-  <p class="plan-desc">Finish charging right as the off-peak window closes.</p>
+  <p class="plan-desc" id="planDesc">Finish charging right as the off-peak window closes.</p>
   <div class="clocks">
     <div class="clock">
       <div class="zone">NZT start → stop</div>
@@ -205,6 +170,26 @@
   <div class="timeline" id="timeline" style="display:none;"></div>
   <div id="fitWarn" style="display:none;"></div>
   <div class="offset-note" id="offsetNote" style="display:none;"></div>
+</div>
+
+<div class="card">
+  <h2>Battery &amp; charger <span class="settings-hint">— settings, rarely changes</span></h2>
+  <div class="row">
+    <div class="field">
+      <label for="capacity">Battery capacity (kWh)</label>
+      <input type="number" id="capacity" value="30" step="0.1" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="power">Charge power (kW)</label>
+      <input type="number" id="power" value="1.8" step="0.1" inputmode="decimal">
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label for="efficiency">Charging efficiency (%)</label>
+      <input type="number" id="efficiency" value="90" step="1" inputmode="decimal">
+    </div>
+  </div>
 </div>
 
 <div class="card">
@@ -225,13 +210,39 @@
       <input type="time" id="peakEnd" value="07:00">
     </div>
   </div>
+  <div class="row">
+    <div class="field">
+      <label for="balanceMins">BMS balance buffer at 100% (min)</label>
+      <input type="number" id="balanceMins" value="60" step="5" min="0" inputmode="numeric">
+    </div>
+  </div>
 </div>
 
-<p class="footnote">Charger, off-peak times, and other settings are remembered on this device. JPT/NZT offset is calculated live for the selected date, NZ daylight saving is automatically handled. "Set on car" times assume your Leaf's timer clock is running on JPT.</p>
+<div class="card">
+  <h2>Charge taper <span class="settings-hint">— settings, rarely changes</span></h2>
+  <div class="climate-row" style="margin-top:0; padding-top:0; border-top:none;">
+    <label class="climate-check">
+      <input type="checkbox" id="taperOn" checked>
+      <span>Model charge taper above threshold</span>
+    </label>
+  </div>
+  <div class="row" id="taperRow" style="display:none; margin-top:10px;">
+    <div class="field">
+      <label for="taperStart">Taper starts at (%)</label>
+      <input type="number" id="taperStart" value="80" step="1" min="0" max="100" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label for="taperRate">Rate above it (% of normal)</label>
+      <input type="number" id="taperRate" value="70" step="5" min="1" max="100" inputmode="numeric">
+    </div>
+  </div>
+</div>
+
+<p class="footnote">Charger, off-peak times, and other settings are remembered on this device. JPT/NZT offset is calculated live for the selected date, NZ daylight saving is automatically handled. "Set on car" times assume your Leaf's timer clock is running on JPT. When target is 100%, the schedule starts earlier by the balance buffer so the charger stays live at full charge — the car's timer still ends at off-peak close.</p>
 
 <script>
 (function () {
-  var ids = ['capacity','power','efficiency','current','target','planDate','peakStart','peakEnd','climateOn','climateMins','taperOn','taperStart','taperRate'];
+  var ids = ['capacity','power','efficiency','current','target','planDate','peakStart','peakEnd','climateOn','climateMins','taperOn','taperStart','taperRate','balanceMins'];
   var els = {};
   ids.forEach(function (id) { els[id] = document.getElementById(id); });
 
@@ -367,14 +378,33 @@
 
     document.getElementById('climateMinsWrap').style.display = els.climateOn.checked ? 'flex' : 'none';
     var climateMins = els.climateOn.checked ? (parseFloat(els.climateMins.value) || 0) : 0;
+
+    // Balance buffer only applies when target is 100% — keeps charger live past
+    // the point charging finishes, so the BMS gets time to balance the pack,
+    // without changing the timer's end time (still off-peak close).
+    var isFullTarget = target >= 100;
+    var balanceMins = (isFullTarget && durationMins > 0) ? (parseFloat(els.balanceMins.value) || 0) : 0;
+
+    var planMins = durationMins + climateMins; // actual charging + climate block
+    var scheduleMins = planMins + balanceMins;  // full block from start to window close
+
     var totalNote = document.getElementById('totalNote');
-    var planMins = durationMins + climateMins;
-    if (climateMins > 0 && durationMins > 0) {
-      var pH = Math.floor(planMins / 60), pM = Math.round(planMins % 60);
+    if (durationMins > 0 && (climateMins > 0 || balanceMins > 0)) {
+      var parts = ['Charge ' + Math.round(durationMins) + ' min'];
+      if (climateMins > 0) parts.push('climate ' + Math.round(climateMins) + ' min');
+      if (balanceMins > 0) parts.push('BMS balance buffer ' + Math.round(balanceMins) + ' min');
+      var schH = Math.floor(scheduleMins / 60), schM = Math.round(scheduleMins % 60);
       totalNote.style.display = 'block';
-      totalNote.textContent = 'Charge ' + Math.round(durationMins) + ' min + climate ' + Math.round(climateMins) + ' min = ' + pH + ':' + String(pM).padStart(2,'0') + ' scheduled block';
+      totalNote.textContent = parts.join(' + ') + ' = ' + schH + ':' + String(schM).padStart(2, '0') + ' scheduled block';
     } else {
       totalNote.style.display = 'none';
+    }
+
+    var planDesc = document.getElementById('planDesc');
+    if (balanceMins > 0) {
+      planDesc.textContent = 'Reaches 100% about ' + Math.round(balanceMins) + ' min before the off-peak window closes, then stays plugged in for the BMS to balance the pack — timer still ends at window close.';
+    } else {
+      planDesc.textContent = 'Finish charging right as the off-peak window closes.';
     }
 
     var peakStartMins = parseTime(els.peakStart.value || '21:00');
@@ -394,8 +424,8 @@
 
     var fitWarn = document.getElementById('fitWarn');
     fitWarn.innerHTML = '';
-    if (planMins > windowLen) {
-      fitWarn.innerHTML = '<div class="warn">Scheduled block (' + Math.round(planMins) + ' min) is longer than the off-peak window (' + Math.round(windowLen) + ' min) — it will spill into peak rate either way.</div>';
+    if (scheduleMins > windowLen) {
+      fitWarn.innerHTML = '<div class="warn">Scheduled block (' + Math.round(scheduleMins) + ' min) is longer than the off-peak window (' + Math.round(windowLen) + ' min) — it will spill into peak rate either way.</div>';
     }
 
     function toJPT(nztMins, dayOffset) {
@@ -422,15 +452,16 @@
       document.getElementById(prefix + '-jpt-day').textContent = jDayText;
     }
 
-    var bLeftForTimeline, bWidthForTimeline;
+    var bLeftForTimeline, bWidthForTimeline, bufferWidthForTimeline;
     if (durationMins > 0) {
       var bStop = peakEndMins;
-      var bStart = bStop - planMins;
+      var bStart = bStop - scheduleMins;
       var bStartDay = bStart < 0 ? -1 : 0;
       var bStartNorm = ((bStart % 1440) + 1440) % 1440;
       fillPlan('b', bStartNorm, bStartDay, bStop, 0);
       bLeftForTimeline = bStartNorm;
       bWidthForTimeline = planMins;
+      bufferWidthForTimeline = balanceMins;
     } else {
       document.getElementById('b-nzt').textContent = '--:-- \u2192 --:--';
       document.getElementById('b-jpt').textContent = '--:-- \u2192 --:--';
@@ -462,6 +493,17 @@
       block.style.left = blLeft + '%';
       block.style.width = Math.min(blWidth, 100 - blLeft) + '%';
       tl.appendChild(block);
+
+      if (bufferWidthForTimeline > 0) {
+        var bufBlock = document.createElement('div');
+        bufBlock.className = 'buffer-block';
+        var bufLeftMins = bLeftForTimeline + bWidthForTimeline;
+        var bufLeft = (bufLeftMins / 1440) * 100;
+        var bufWidth = (bufferWidthForTimeline / 1440) * 100;
+        bufBlock.style.left = Math.min(bufLeft, 100) + '%';
+        bufBlock.style.width = Math.min(bufWidth, 100 - Math.min(bufLeft, 100)) + '%';
+        tl.appendChild(bufBlock);
+      }
     }
 
     saveSettings();
